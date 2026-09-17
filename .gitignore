@@ -15,3 +15,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Pacote de deploy da Lambda (gerado por scripts/build_lambda_package.ps1)
+lambda/package/
+lambda/build.zip

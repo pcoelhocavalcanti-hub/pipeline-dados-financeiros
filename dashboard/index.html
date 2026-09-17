@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radar B3</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-2: #f2f1ee;
+    --ink: #0b0b0b;
+    --ink-secondary: #52514e;
+    --ink-muted: #898781;
+    --gridline: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --success: #006300;
+    --series-petr4: #2a78d6;
+    --series-vale3: #eb6834;
+    --series-itub4: #1baf7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --surface-2: #212120;
+      --ink: #ffffff;
+      --ink-secondary: #c3c2b7;
+      --ink-muted: #898781;
+      --gridline: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --success: #0ca30c;
+      --series-petr4: #3987e5;
+      --series-vale3: #d95926;
+      --series-itub4: #199e70;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #212120;
+    --ink: #ffffff;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #898781;
+    --gridline: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --success: #0ca30c;
+    --series-petr4: #3987e5;
+    --series-vale3: #d95926;
+    --series-itub4: #199e70;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding-inline: 20px;
+    padding-block: 28px;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace; }
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  header { margin-bottom: 24px; }
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    text-wrap: balance;
+  }
+  .subtitle {
+    font-size: 13.5px;
+    color: var(--ink-secondary);
+    max-width: 65ch;
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 720px) {
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat-tile .ticker-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+  }
+  .stat-value {
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.1;
+    margin-bottom: 6px;
+  }
+  .stat-delta { font-size: 13px; font-weight: 600; }
+  .stat-delta.up { color: var(--success); }
+  .stat-meta {
+    font-size: 11.5px;
+    color: var(--ink-muted);
+    margin-top: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 18px 8px;
+    margin-bottom: 16px;
+  }
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .card-title { font-size: 15px; font-weight: 600; }
+  .card-note { font-size: 12px; color: var(--ink-muted); }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0 4px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-secondary); }
+  .legend-item .swatch-line { width: 14px; height: 2px; border-radius: 1px; flex: none; }
+
+  .chart-wrap { position: relative; width: 100%; }
+  svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+  .gridline { stroke: var(--gridline); stroke-width: 1; }
+  .baseline-100 { stroke: var(--baseline); stroke-width: 1; stroke-dasharray: 3 3; }
+  .axis-label { fill: var(--ink-muted); font-size: 10.5px; }
+  .series-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .end-dot { stroke-width: 2; }
+  .end-label { font-size: 11.5px; font-weight: 600; }
+
+  .crosshair { stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 2 3; pointer-events: none; opacity: 0; }
+  .hover-dot { pointer-events: none; opacity: 0; stroke-width: 2; }
+
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    opacity: 0;
+    transition: opacity 0.08s ease;
+    min-width: 148px;
+    z-index: 5;
+  }
+  .tooltip .tt-date { font-weight: 600; margin-bottom: 5px; color: var(--ink); }
+  .tooltip .tt-row { display: flex; align-items: center; gap: 6px; justify-content: space-between; margin-top: 3px; }
+  .tooltip .tt-key { display: flex; align-items: center; gap: 5px; color: var(--ink-secondary); }
+  .tooltip .tt-line { width: 10px; height: 2px; border-radius: 1px; flex: none; }
+  .tooltip .tt-val { font-weight: 600; color: var(--ink); }
+
+  .hit-layer { fill: transparent; cursor: crosshair; }
+
+  details.table-toggle { margin: 6px 0 2px; }
+  summary {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+    cursor: pointer;
+    padding: 6px 0;
+  }
+  .table-scroll { overflow-x: auto; margin-bottom: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { text-align: right; padding: 5px 10px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--ink-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+
+  footer {
+    font-size: 12px;
+    color: var(--ink-muted);
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  footer code { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 11.5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Pipeline de dados financeiros</div>
+  <h1>Radar B3</h1>
+  <div class="subtitle">Instantâneo de PETR4, VALE3 e ITUB4 (últimos 30 dias) e da taxa Selic, gerado a partir dos CSVs no bucket S3. Não é uma leitura ao vivo — reflete a última coleta sincronizada.</div>
+</header>
+
+<div class="stat-row" id="statRow"></div>
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">Desempenho indexado (base 100)</div>
+    <div class="card-note tabular" id="periodoLabel"></div>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="chart-wrap">
+    <svg class="chart" id="chart" viewBox="0 0 900 340" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+  <details class="table-toggle">
+    <summary>Ver tabela de dados</summary>
+    <div class="table-scroll">
+      <table id="dataTable"></table>
+    </div>
+  </details>
+</div>
+
+<footer>
+  <span>⏱ Coleta automatizada via AWS Lambda + EventBridge, dias úteis às 18h (horário de Brasília).</span>
+  <span>Fonte: <code>yfinance</code> · Banco Central (SGS 11)</span>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var DATA = {"tickers": {"ITUB4": {"dates": ["2026-08-06", "2026-08-07", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17"], "close": [41.81, 40.73, 40.4, 38.98, 38.41, 38.29, 38.98, 38.36, 38.17, 38.35, 37.49, 38.58, 38.71, 39.42, 39.43, 39.08, 39.17, 39.5, 39.88, 41.41, 41.92, 41.92, 42.43, 41.59, 42.35, 42.73, 42.35, 42.67, 42.62, 42.95], "indexed": [100.0, 97.418, 96.629, 93.235, 91.872, 91.585, 93.235, 91.752, 91.298, 91.728, 89.672, 92.278, 92.589, 94.286, 94.31, 93.474, 93.689, 94.478, 95.382, 99.041, 100.261, 100.261, 101.481, 99.472, 101.29, 102.199, 101.29, 102.055, 101.935, 102.725], "retorno_acumulado_pct": 2.72, "volatilidade_anual_pct": 25.52, "preco_atual": 42.95}, "PETR4": {"dates": ["2026-08-06", "2026-08-07", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17"], "close": [40.85, 39.63, 40.94, 40.39, 40.19, 40.62, 40.81, 41.18, 41.3, 41.8, 42.97, 42.95, 42.11, 41.35, 41.45, 42.7, 43.55, 45.02, 46.87, 48.2, 47.56, 47.11, 48.09, 48.42, 49.12, 49.0, 48.92, 50.43, 48.65, 48.9], "indexed": [100.0, 97.009, 100.237, 98.884, 98.386, 99.454, 99.905, 100.807, 101.116, 102.326, 105.198, 105.151, 103.09, 101.229, 101.474, 104.534, 106.615, 110.214, 114.743, 117.999, 116.432, 115.33, 117.729, 118.537, 120.251, 119.957, 119.761, 123.458, 119.1, 119.712], "retorno_acumulado_pct": 19.71, "volatilidade_anual_pct": 30.95, "preco_atual": 48.9}, "VALE3": {"dates": ["2026-08-06", "2026-08-07", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17"], "close": [73.33, 72.92, 73.86, 72.37, 73.18, 71.9, 71.3, 71.41, 71.55, 72.13, 74.02, 75.03, 77.13, 78.7, 78.45, 79.11, 78.58, 77.85, 78.3, 80.8, 78.45, 78.62, 79.02, 79.1, 78.23, 78.2, 75.48, 74.6, 73.0, 74.77], "indexed": [100.0, 99.443, 100.716, 98.687, 99.792, 98.047, 97.229, 97.379, 97.57, 98.361, 100.938, 102.315, 105.179, 107.32, 106.979, 107.879, 107.156, 106.161, 106.774, 110.183, 106.979, 107.211, 107.756, 107.865, 106.679, 106.638, 102.929, 101.729, 99.547, 101.961], "retorno_acumulado_pct": 1.96, "volatilidade_anual_pct": 26.17, "preco_atual": 74.77}}, "selic": {"daily_pct": 0.05166, "annual_pct": 13.9, "series": [["19/08/2026", 0.05166], ["20/08/2026", 0.05166], ["21/08/2026", 0.05166], ["24/08/2026", 0.05166], ["25/08/2026", 0.05166], ["26/08/2026", 0.05166], ["27/08/2026", 0.05166], ["28/08/2026", 0.05166], ["31/08/2026", 0.05166], ["01/09/2026", 0.05166], ["02/09/2026", 0.05166], ["03/09/2026", 0.05166], ["04/09/2026", 0.05166], ["08/09/2026", 0.05166], ["09/09/2026", 0.05166], ["10/09/2026", 0.05166], ["11/09/2026", 0.05166], ["14/09/2026", 0.05166], ["15/09/2026", 0.05166], ["16/09/2026", 0.05166]]}};
+
+  var SERIES_ORDER = ["PETR4", "VALE3", "ITUB4"];
+  var SERIES_COLOR_VAR = { PETR4: "--series-petr4", VALE3: "--series-vale3", ITUB4: "--series-itub4" };
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function fmtPct(v) {
+    var sign = v > 0 ? "+" : "";
+    return sign + v.toFixed(2).replace(".", ",") + "%";
+  }
+
+  function fmtBRL(v) {
+    return "R$ " + v.toFixed(2).replace(".", ",");
+  }
+
+  function fmtDateShort(iso) {
+    var parts = iso.split("-");
+    return parts[2] + "/" + parts[1];
+  }
+
+  // ---------- Stat tiles ----------
+  var statRow = document.getElementById("statRow");
+  SERIES_ORDER.forEach(function (ticker) {
+    var t = DATA.tickers[ticker];
+    var tile = document.createElement("div");
+    tile.className = "stat-tile";
+    tile.innerHTML =
+      '<div class="ticker-row">' +
+        '<span class="swatch" style="background:var(' + SERIES_COLOR_VAR[ticker] + ')"></span>' +
+        '<span class="stat-label">' + ticker + '</span>' +
+      '</div>' +
+      '<div class="stat-value mono tabular">' + fmtBRL(t.preco_atual) + '</div>' +
+      '<div class="stat-delta ' + (t.retorno_acumulado_pct >= 0 ? 'up' : '') + ' mono tabular">' + fmtPct(t.retorno_acumulado_pct) + ' no período</div>' +
+      '<div class="stat-meta"><span>Volatilidade a.a.</span><span class="mono tabular">' + t.volatilidade_anual_pct.toFixed(1).replace(".", ",") + '%</span></div>';
+    statRow.appendChild(tile);
+  });
+
+  var selicTile = document.createElement("div");
+  selicTile.className = "stat-tile";
+  selicTile.innerHTML =
+    '<div class="ticker-row"><span class="stat-label">Selic</span></div>' +
+    '<div class="stat-value mono tabular">' + DATA.selic.annual_pct.toFixed(1).replace(".", ",") + '% a.a.</div>' +
+    '<div class="stat-delta">Taxa diária ' + DATA.selic.daily_pct.toFixed(4).replace(".", ",") + '%</div>' +
+    '<div class="stat-meta"><span>Sem alteração no período</span><span></span></div>';
+  statRow.appendChild(selicTile);
+
+  // ---------- Chart ----------
+  var dates = DATA.tickers[SERIES_ORDER[0]].dates;
+  document.getElementById("periodoLabel").textContent =
+    fmtDateShort(dates[0]) + " – " + fmtDateShort(dates[dates.length - 1]);
+
+  var legend = document.getElementById("legend");
+  SERIES_ORDER.forEach(function (ticker) {
+    var item = document.createElement("div");
+    item.className = "legend-item";
+    item.innerHTML =
+      '<span class="swatch-line" style="background:var(' + SERIES_COLOR_VAR[ticker] + ')"></span><span>' + ticker + '</span>';
+    legend.appendChild(item);
+  });
+
+  var svgNS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("chart");
+  var W = 900, H = 340;
+  var padL = 34, padR = 54, padT = 16, padB = 26;
+  var plotW = W - padL - padR;
+  var plotH = H - padT - padB;
+
+  var allIndexed = [];
+  SERIES_ORDER.forEach(function (t) { allIndexed = allIndexed.concat(DATA.tickers[t].indexed); });
+  var dataMin = Math.min.apply(null, allIndexed);
+  var dataMax = Math.max.apply(null, allIndexed);
+  var yMin = Math.floor((dataMin - 3) / 5) * 5;
+  var yMax = Math.ceil((dataMax + 3) / 5) * 5;
+
+  function xPos(i) { return padL + (i / (dates.length - 1)) * plotW; }
+  function yPos(v) { return padT + (1 - (v - yMin) / (yMax - yMin)) * plotH; }
+
+  function el(tag, attrs) {
+    var e = document.createElementNS(svgNS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // gridlines (nice steps of 10, plus baseline at 100 if in range)
+  var step = 10;
+  for (var gv = Math.ceil(yMin / step) * step; gv <= yMax; gv += step) {
+    var y = yPos(gv);
+    var isBaseline = gv === 100;
+    svg.appendChild(el("line", {
+      x1: padL, x2: W - padR, y1: y, y2: y,
+      class: isBaseline ? "baseline-100" : "gridline"
+    }));
+    var lbl = el("text", { x: W - padR + 8, y: y + 3.5, class: "axis-label" });
+    lbl.textContent = gv;
+    svg.appendChild(lbl);
+  }
+  var baseLbl = el("text", { x: padL, y: yPos(100) - 6, class: "axis-label" });
+  baseLbl.textContent = "base 100";
+  svg.appendChild(baseLbl);
+
+  // x-axis date labels (every 5th point)
+  dates.forEach(function (d, i) {
+    if (i % 5 !== 0 && i !== dates.length - 1) return;
+    var t = el("text", { x: xPos(i), y: H - 6, class: "axis-label", "text-anchor": i === dates.length - 1 ? "end" : "middle" });
+    t.textContent = fmtDateShort(d);
+    svg.appendChild(t);
+  });
+
+  var hoverDots = {};
+  SERIES_ORDER.forEach(function (ticker) {
+    var series = DATA.tickers[ticker].indexed;
+    var d = series.map(function (v, i) { return (i === 0 ? "M" : "L") + xPos(i).toFixed(2) + "," + yPos(v).toFixed(2); }).join(" ");
+    var path = el("path", { d: d, class: "series-line", stroke: "var(" + SERIES_COLOR_VAR[ticker] + ")" });
+    svg.appendChild(path);
+
+    var lastI = series.length - 1;
+    var endDot = el("circle", {
+      cx: xPos(lastI), cy: yPos(series[lastI]), r: 4,
+      fill: "var(" + SERIES_COLOR_VAR[ticker] + ")", stroke: "var(--surface)", class: "end-dot"
+    });
+    svg.appendChild(endDot);
+
+    var endLabel = el("text", {
+      x: xPos(lastI) + 8, y: yPos(series[lastI]) + 4,
+      class: "end-label", fill: "var(" + SERIES_COLOR_VAR[ticker] + ")"
+    });
+    endLabel.textContent = ticker;
+    svg.appendChild(endLabel);
+
+    var hoverDot = el("circle", { r: 4.5, fill: "var(" + SERIES_COLOR_VAR[ticker] + ")", stroke: "var(--surface)", class: "hover-dot" });
+    svg.appendChild(hoverDot);
+    hoverDots[ticker] = hoverDot;
+  });
+
+  var crosshair = el("line", { y1: padT, y2: H - padB, class: "crosshair" });
+  svg.appendChild(crosshair);
+
+  var hitLayer = el("rect", { x: padL, y: padT, width: plotW, height: plotH, class: "hit-layer" });
+  svg.appendChild(hitLayer);
+
+  var tooltip = document.getElementById("tooltip");
+  var chartWrap = document.querySelector(".chart-wrap");
+
+  function showTooltip(i, clientX) {
+    var rect = svg.getBoundingClientRect();
+    var scale = rect.width / W;
+    var xSvg = xPos(i);
+    crosshair.setAttribute("x1", xSvg);
+    crosshair.setAttribute("x2", xSvg);
+    crosshair.style.opacity = 1;
+
+    var html = '<div class="tt-date">' + dates[i] + '</div>';
+    SERIES_ORDER.forEach(function (ticker) {
+      var t = DATA.tickers[ticker];
+      var dot = hoverDots[ticker];
+      dot.setAttribute("cx", xSvg);
+      dot.setAttribute("cy", yPos(t.indexed[i]));
+      dot.style.opacity = 1;
+      html += '<div class="tt-row"><span class="tt-key"><span class="tt-line" style="background:var(' + SERIES_COLOR_VAR[ticker] + ')"></span>' + ticker + '</span><span class="tt-val mono tabular">' + fmtBRL(t.close[i]) + '</span></div>';
+    });
+    tooltip.innerHTML = html;
+    tooltip.style.opacity = 1;
+
+    var left = xSvg * scale + 14;
+    if (left + 170 > rect.width) left = xSvg * scale - 170;
+    tooltip.style.left = left + "px";
+    tooltip.style.top = (yPos(yMax) * scale) + "px";
+  }
+
+  function hideTooltip() {
+    crosshair.style.opacity = 0;
+    tooltip.style.opacity = 0;
+    SERIES_ORDER.forEach(function (ticker) { hoverDots[ticker].style.opacity = 0; });
+  }
+
+  function handlePointer(evt) {
+    var rect = svg.getBoundingClientRect();
+    var scale = W / rect.width;
+    var xLocal = (evt.clientX - rect.left) * scale;
+    var i = Math.round(((xLocal - padL) / plotW) * (dates.length - 1));
+    i = Math.max(0, Math.min(dates.length - 1, i));
+    showTooltip(i, evt.clientX);
+  }
+
+  hitLayer.addEventListener("pointermove", handlePointer);
+  hitLayer.addEventListener("pointerleave", hideTooltip);
+  hitLayer.addEventListener("pointerdown", handlePointer);
+
+  // ---------- Table view ----------
+  var table = document.getElementById("dataTable");
+  var thead = document.createElement("thead");
+  var headRow = document.createElement("tr");
+  ["Data", "PETR4", "VALE3", "ITUB4", "Selic (dia)"].forEach(function (h) {
+    var th = document.createElement("th");
+    th.textContent = h;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  var tbody = document.createElement("tbody");
+  var selicByDate = {};
+  DATA.selic.series.forEach(function (row) {
+    var parts = row[0].split("/");
+    var iso = parts[2] + "-" + parts[1] + "-" + parts[0];
+    selicByDate[iso] = row[1];
+  });
+
+  for (var i = dates.length - 1; i >= 0; i--) {
+    var tr = document.createElement("tr");
+    var tdDate = document.createElement("td");
+    tdDate.textContent = dates[i];
+    tr.appendChild(tdDate);
+    SERIES_ORDER.forEach(function (ticker) {
+      var td = document.createElement("td");
+      td.className = "mono tabular";
+      td.textContent = fmtBRL(DATA.tickers[ticker].close[i]);
+      tr.appendChild(td);
+    });
+    var tdSelic = document.createElement("td");
+    tdSelic.className = "mono tabular";
+    var sv = selicByDate[dates[i]];
+    tdSelic.textContent = sv !== undefined ? sv.toFixed(4).replace(".", ",") + "%" : "—";
+    tr.appendChild(tdSelic);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+})();
+</script>
+</body>
+</html>

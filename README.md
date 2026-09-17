@@ -1,7 +1,8 @@
 # Pipeline de Dados Financeiros
 
-Pipeline simples (MVP) que coleta dados financeiros publicos, salva localmente em
-CSV e sobe para um bucket S3 provisionado via Terraform.
+Pipeline (MVP) que coleta dados financeiros publicos, sobe para um bucket S3
+provisionado via Terraform, roda automaticamente todo dia util via Lambda +
+EventBridge, e expoe um dashboard publico com os dados coletados.
 
 ## O que o projeto faz
 
@@ -12,26 +13,48 @@ CSV e sobe para um bucket S3 provisionado via Terraform.
 2. **Coleta da Selic** ([scripts/coleta_selic.py](scripts/coleta_selic.py)): baixa a
    serie historica diaria da taxa Selic (serie SGS 11) na API do Banco Central e
    salva em `data/selic/`.
-3. **Infraestrutura** ([terraform/](terraform/)): cria um bucket S3 com
-   versionamento habilitado e bloqueio de acesso publico.
+3. **Infraestrutura** ([terraform/](terraform/)): cria o bucket S3 de dados
+   (privado, versionamento habilitado) e o bucket do dashboard (publico, site
+   estatico).
 4. **Upload** ([scripts/upload_s3.py](scripts/upload_s3.py)): sobe os CSVs gerados
-   localmente para o bucket, organizados em `acoes/` e `selic/`.
+   localmente para o bucket, organizados em `acoes/` e `selic/`. Uso manual/pontual
+   — a coleta automatizada (item 6) nao depende deste script.
+5. **Analise** ([scripts/analise_retorno_volatilidade.py](scripts/analise_retorno_volatilidade.py)):
+   calcula retorno acumulado e volatilidade anualizada por acao a partir dos CSVs
+   locais — preview do simulador de carteira.
+6. **Coleta automatizada** ([lambda/handler.py](lambda/handler.py)): mesma logica
+   das coletas de acoes e Selic, rodando como Lambda, disparada pelo EventBridge
+   todo dia util as 18h (horario de Brasilia), escrevendo direto no S3 sem
+   depender de execucao manual.
+7. **Dashboard** ([dashboard/index.html](dashboard/index.html)): pagina estatica
+   com o desempenho indexado das acoes, Selic e retorno/volatilidade, publicada
+   no bucket de site estatico (ver `dashboard_url` nos outputs do Terraform). E
+   um instantaneo gerado a partir dos dados coletados — nao le o S3 ao vivo.
 
 ## Estrutura
 
 ```
 projeto-financeiro/
 ├── terraform/
-│   ├── main.tf          # bucket S3 + versionamento + bloqueio de acesso publico
+│   ├── main.tf          # bucket S3 de dados: versionamento + bloqueio de acesso publico
+│   ├── lambda.tf         # Lambda de coleta diaria + IAM + regra do EventBridge
+│   ├── dashboard.tf       # bucket S3 do dashboard (site estatico publico)
 │   ├── variables.tf
 │   ├── outputs.tf
-│   └── terraform.tfvars # nome do bucket (ajuste antes de aplicar)
+│   └── terraform.tfvars  # nomes dos buckets (ajuste antes de aplicar)
 ├── scripts/
 │   ├── coleta_acoes.py
 │   ├── coleta_selic.py
 │   ├── upload_s3.py
+│   ├── analise_retorno_volatilidade.py
 │   └── requirements.txt
-├── data/                 # gerado localmente pelos scripts de coleta (nao versionado)
+├── lambda/
+│   ├── handler.py               # logica de coleta + upload, roda na Lambda
+│   ├── requirements.txt
+│   └── build_lambda_package.ps1  # empacota handler + deps (Linux/manylinux) em build.zip
+├── dashboard/
+│   └── index.html         # dashboard estatico publicado no bucket do site
+├── data/                   # gerado localmente pelos scripts de coleta (nao versionado)
 └── README.md
 ```
 
@@ -61,7 +84,19 @@ ambiente `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) para o Terraform e para 
 > excecao para `terraform.exe` e os plugins de provider — essa mudanca de
 > configuracao do antivirus precisa ser feita por voce, manualmente.
 
-### 2. Provisionar a infraestrutura (Terraform)
+### 2. Empacotar a Lambda (antes do terraform apply)
+
+```powershell
+cd lambda
+.\build_lambda_package.ps1
+```
+
+Gera `lambda/build.zip` (nao versionado) com `handler.py` + dependencias
+compiladas para Linux x86_64 (baixadas via `pip --platform manylinux2014_x86_64`,
+sem precisar de Docker). O `terraform apply` do proximo passo depende desse zip
+existir.
+
+### 3. Provisionar a infraestrutura (Terraform)
 
 ```bash
 cd terraform
@@ -69,39 +104,53 @@ terraform init
 terraform apply
 ```
 
-Edite `terraform.tfvars` antes de aplicar — `bucket_name` precisa ser
-**globalmente unico** em toda a AWS.
+Edite `terraform.tfvars` antes de aplicar — `bucket_name` e
+`dashboard_bucket_name` precisam ser **globalmente unicos** em toda a AWS. Isso
+cria: bucket de dados (privado), Lambda + EventBridge (coleta automatizada
+diaria) e bucket do dashboard (publico). O output `dashboard_url` traz o link
+do dashboard.
 
-### 3. Rodar a coleta de dados
+### 4. Rodar a coleta manualmente (opcional)
+
+A coleta ja roda sozinha via Lambda, mas para rodar na sua maquina (ex.: gerar
+dados mais recentes para o dashboard sem esperar o horario agendado):
 
 ```bash
 cd scripts
 python coleta_acoes.py
 python coleta_selic.py
-```
-
-Isso gera os CSVs em `data/acoes/` e `data/selic/`.
-
-### 4. Subir os dados para o S3
-
-```bash
-cd scripts
-python upload_s3.py <nome-do-bucket>
-# ou: export S3_BUCKET_NAME=<nome-do-bucket> && python upload_s3.py
+python upload_s3.py <nome-do-bucket-de-dados>
 ```
 
 Confirme com:
 
 ```bash
-aws s3 ls s3://<nome-do-bucket>/acoes/
-aws s3 ls s3://<nome-do-bucket>/selic/
+aws s3 ls s3://<nome-do-bucket-de-dados>/acoes/
+aws s3 ls s3://<nome-do-bucket-de-dados>/selic/
 ```
+
+### 5. Analise rapida (retorno e volatilidade)
+
+```bash
+cd scripts
+python analise_retorno_volatilidade.py
+```
+
+Le os CSVs locais em `data/acoes/` e imprime retorno acumulado e volatilidade
+anualizada por ticker.
 
 ## Proximos passos
 
 - **Valuation DCF**: modulo de valuation por fluxo de caixa descontado a partir
   dos dados coletados.
 - **Simulador de carteira**: simulacao de alocacao/retorno de carteira usando os
-  precos historicos e a Selic como taxa livre de risco.
-- Automacao (agendamento, orquestracao, IaC de pipeline completo) fica para uma
-  proxima iteracao — este MVP roda tudo manualmente.
+  precos historicos e a Selic como taxa livre de risco (a analise de
+  retorno/volatilidade ja e um primeiro passo nessa direcao).
+- **Enxugar o pacote da Lambda**: `lambda/requirements.txt` puxa dependencias do
+  `yfinance` que nao usamos (`beautifulsoup4`, `lxml`, `protobuf`, `peewee`,
+  `websockets`), inflando o zip para ~48MB e deixando o upload lento. Vale
+  vendorizar so o necessario.
+- **Dominio proprio para o dashboard**: hoje ele fica no endpoint padrao do S3
+  (`http://<bucket>.s3-website-<regiao>.amazonaws.com`, sem HTTPS). Um dominio
+  proprio exigiria CloudFront + ACM (certificado HTTPS) + Route53 na frente do
+  bucket.

@@ -14,3 +14,8 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
+
+variable "dashboard_bucket_name" {
+  description = "Nome do bucket S3 que hospeda o dashboard estatico (deve ser globalmente unico)"
+  type        = string
+}
