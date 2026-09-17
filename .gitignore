@@ -1,0 +1,17 @@
+# Dados gerados localmente pelos scripts de coleta
+data/
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/terraform.tfvars
+
+# Certificados locais (ex.: bundle de CA para contornar inspecao SSL de antivirus)
+.certs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
